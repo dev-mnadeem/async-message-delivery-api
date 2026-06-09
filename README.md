@@ -76,3 +76,32 @@ The tests run on SQLite. `tests/test_sql_dialect.py` compiles the claim query ag
 - Tables are created on startup (`AUTO_CREATE_SCHEMA`), there are no migrations yet.
 - No authentication, `user_id` is trusted as sent.
 - Clients poll for status. Server-sent events or websockets would be a reasonable next step.
+
+## From send to reply
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant API as FastAPI
+    participant DB as Database queue
+    participant W as Worker process
+    C->>API: POST message with client_message_id
+    API->>DB: Store once and allocate conversation sequence
+    API-->>C: Message ID
+    W->>DB: Claim the next eligible message
+    W->>W: Produce reply through configured provider
+    W->>DB: Save result or schedule retry
+    C->>API: Poll message status
+    API-->>C: State and reply
+```
+
+![Native send, replay and completed reply](docs/screenshots/native-api.png)
+
+This run used a fresh SQLite database and a separate echo worker. Repeating the
+client message ID returned the original message, then polling returned its reply.
+[HTTP exchange record](docs/native-api.json). SQLite does not validate PostgreSQL's
+concurrent `SKIP LOCKED` claims; that still needs a multi-worker PostgreSQL run.
+
+## Author
+
+[**Muhammad Nadeem**](https://github.com/dev-mnadeem)
